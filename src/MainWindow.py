@@ -139,25 +139,31 @@ class MilestoneWindow(tk.Toplevel):
         self.tree.bind("<Button-1>", self._on_tree_click) 
         # 绑定双击事件
         self.tree.bind("<Double-1>", self._on_task_double_click)
-
-        # 新增“添加任务”按钮
-        btn_add_task = ttk.Button(self, text="+ 添加任务", command=self._open_add_task_dialog)
-        btn_add_task.pack(anchor=tk.NE, padx=10, pady=5)
-
+        
+        # 添加“添加任务”、“添加子任务”按钮
+        btn_frame = ttk.Frame(self)
+        btn_frame.pack(anchor=tk.NE, padx=10, pady=5)
+        
+        ttk.Button(btn_frame, text="+ 添加任务", command=self._open_add_task_dialog).pack(side=tk.LEFT)
+        ttk.Button(btn_frame, text="+ 添加子任务", command=self._open_add_subtask_dialog).pack(side=tk.LEFT, padx=5)
+        
         # 树形列表右键菜单
         self.tree.bind("<Button-3>", self._show_context_menu)
 
-    def _populate_tasks(self, tasks: list[Task], parent: str):
+    def _populate_tasks(self, tasks: list[Task], parent: str, bSubTask: bool=False):
         """递归填充任务树"""
         for task in tasks:
+            taskname = task.name
+            if bSubTask is True:
+                taskname = "  > "+taskname
             item = self.tree.insert(
                 parent, "end", 
                 text=task.id,
-                values=(f"{task.name}", f"{task.progress}%", f"{task.time_spent}/{task.time_planned}"),
+                values=(f"{taskname}", f"{task.progress}%", f"{task.time_spent}/{task.time_planned}"),
                 open=False
             )
             if task.subtasks:
-                self._populate_tasks(task.subtasks, parent=item)
+                self._populate_tasks(task.subtasks, parent=item, bSubTask=True)
 
     def _on_tree_click(self, event):
         """处理单击事件"""
@@ -248,6 +254,54 @@ class MilestoneWindow(tk.Toplevel):
                 self._refresh_task_list()
             else:
                 messagebox.showerror("错误", "删除失败")
+
+    def _open_add_subtask_dialog(self):
+        """添加子任务对话框"""
+        selected_item = self.tree.selection()
+        if not selected_item:
+            messagebox.showwarning("提示", "请先选择父任务")
+            return
+        
+        parent_task_id = self.tree.item(selected_item[0], "text")  # 假设text存储任务ID
+        parent_task = self.tracker.find_task(parent_task_id)
+        if not parent_task:
+            messagebox.showerror("错误", "未找到父任务")
+            return
+
+        # 复用原有任务创建对话框，传入父任务
+        self._open_add_task_dialog(parent_task=parent_task)
+
+    def _open_add_task_dialog(self, parent_task: Optional[Task] = None):
+        """改进后的任务创建对话框（支持子任务）"""
+        dialog = tk.Toplevel(self)
+        dialog.title("添加子任务" if parent_task else "添加任务")
+        
+        # 输入字段（名称、计划时间）
+        ttk.Label(dialog, text="名称:").grid(row=0, column=0, padx=5, pady=5)
+        entry_name = ttk.Entry(dialog)
+        entry_name.grid(row=0, column=1, padx=5, pady=5)
+        
+        ttk.Label(dialog, text="计划时间（小时）:").grid(row=1, column=0, padx=5, pady=5)
+        entry_time_planned = ttk.Entry(dialog)
+        entry_time_planned.grid(row=1, column=1, padx=5, pady=5)
+
+        def _save():
+            name = entry_name.get()
+            time_planned = float(entry_time_planned.get() or 0)
+            if not name:
+                return
+                
+            new_task = Task(name, time_planned=time_planned)
+            if parent_task:
+                parent_task.add_subtask(new_task)  # 添加为子任务
+            else:
+                self.milestone.add_task(new_task)  # 添加为顶层任务
+                
+            self.tracker.save_data()
+            self._refresh_task_list()
+            dialog.destroy()
+
+        ttk.Button(dialog, text="保存", command=_save).grid(row=2, columnspan=2)
 
 class TaskWindow(tk.Toplevel):
     """任务详情窗口"""
