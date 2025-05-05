@@ -247,3 +247,87 @@
 
 ## AI回答
 [界面代码](界面代码.md)
+
+## 增加编辑功能
+呃，我需要一个简单的跟踪程序来跟踪学习进度以及投入情况。
+主界面就是4个里程碑的投入情况和进展。点击每个里程碑，进入详细情况，列出详细的任务，每个任务的投入和完成情况。
+点击任务，进入任务的详细页，包括当前进展和下一步计划，还有一些超链接，指向这个任务所需要的文件（任务的目录、设计文档、学习笔记、输出的交付件等等）。
+嗯，保存的文件格式，采用json格式。
+采用面向对象的设计方法。先抽象为几个层次，再抽象每个层次的类，并设计类的功能、接口。最后根据设计输出代码。
+另外，尽量使用python内置的lib，减少第三方依赖。
+采用**三层结构**：
+1. **数据层**：使用JSON存储里程碑、任务及关联文件路径。
+2. **逻辑层**：面向对象封装里程碑、任务、进度跟踪逻辑。
+3. **界面层**：基于`tkinter`的简单GUI，支持点击交互。
+##### **2.1 数据模型类**
+###### **`Task` 类**
+- **功能**：描述单个任务的详细信息。
+- **属性**：
+  - `id`：任务唯一标识（UUID）
+  - `name`：任务名称
+  - `time_planned`：计划投入时间（小时）
+  - `time_spent`：已投入时间（小时）
+  - `subtasks`：子任务列表（嵌套`Task`对象）
+  - `links`：关联文件字典（设计文档、笔记、交付件路径）
+  - `progress`：进度百分比（0~100）
+  - `next_steps`：下一步计划描述
+- **方法**：
+  - `add_subtask(subtask: Task)`
+  - `update_progress(new_progress: int)`
+  - `to_dict()`：转换为JSON可序列化字典
+
+###### **`Milestone` 类**
+- **功能**：管理一个里程碑及其关联任务。
+- **属性**：
+  - `id`：里程碑唯一标识（UUID）
+  - `name`：里程碑名称
+  - `tasks`：任务列表（`Task`对象）
+- **方法**：
+  - `add_task(task: Task)`
+  - `calculate_total_time()`：计算总投入时间
+  - `calculate_overall_progress()`：计算里程碑整体进度
+  - `to_dict()`：转换为JSON可序列化字典
+
+---
+
+##### **2.2 持久化类**
+###### **`ProgressTracker` 类**
+- **功能**：负责数据加载、保存与全局状态管理。
+- **属性**：
+  - `milestones`：所有里程碑对象列表
+  - `data_file`：JSON存储路径（默认`progress.json`）
+- **方法**：
+  - `load_data()`
+  - `save_data()`
+  - `find_milestone(milestone_id: str) -> Milestone`
+  - `find_task(task_id: str) -> Task`
+
+---
+
+##### **2.3 界面类**
+###### **`MainWindow` 类**
+- **功能**：主界面显示所有里程碑。
+- **属性**：
+  - `tracker`：绑定的`ProgressTracker`实例
+- **方法**：
+  - `_create_milestone_buttons()`：生成里程碑按钮
+  - `_on_milestone_click(milestone_id: str)`：处理点击事件
+
+###### **`MilestoneWindow` 类**
+- **功能**：展示单个里程碑的详细任务。
+- **方法**：
+  - `_create_task_list()`：生成任务树形视图
+
+###### **`TaskWindow` 类**
+- **功能**：展示任务详细信息。
+- **方法**：
+  - `_open_link(link_type: str)`：通过`webbrowser`打开关联文件
+
+---
+
+基于这些类开发 tkinter GUI 界面，输出界面代码
+需要有编辑功能：可以增加、编辑 里程碑、任务等。可以改变任务状态（TODO、DOING、DONE）。
+计算耗时（任务状态从DOING到DONE的时间）
+
+## AI回答
+[编辑功能](界面代码-增加编辑功能.md)

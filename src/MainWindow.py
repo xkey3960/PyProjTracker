@@ -35,6 +35,10 @@ class MainWindow(tk.Tk):
                 width=30
             )
             btn.pack(pady=5)
+        
+        # “添加里程碑”按钮
+        btn_add = ttk.Button(self, text="+ 新建里程碑", command=self._open_add_milestone_dialog)
+        btn_add.pack(side=tk.BOTTOM, pady=10)
 
     def _open_milestone(self, milestone_id: str):
         """打开里程碑详情窗口"""
@@ -44,6 +48,12 @@ class MainWindow(tk.Tk):
             MilestoneWindow(self, self.tracker, milestone)
         else:
             messagebox.showerror("错误", "未找到该里程碑")
+    
+    def _refresh_ui(self):
+        """刷新主界面"""
+        for widget in self.winfo_children():
+            widget.destroy()
+        self._create_widgets()
 
 class MilestoneWindow(tk.Toplevel):
     """里程碑详情窗口"""
@@ -88,6 +98,10 @@ class MilestoneWindow(tk.Toplevel):
         # 绑定双击事件
         self.tree.bind("<Double-1>", self._on_task_double_click)
 
+        # 新增“添加任务”按钮
+        btn_add_task = ttk.Button(self, text="+ 添加任务", command=self._open_add_task_dialog)
+        btn_add_task.pack(anchor=tk.NE, padx=10, pady=5)
+
     def _populate_tasks(self, tasks: list[Task], parent: str):
         """递归填充任务树"""
         for task in tasks:
@@ -114,6 +128,36 @@ class MilestoneWindow(tk.Toplevel):
         """关闭时显示父窗口"""
         self.destroy()
         self.parent.deiconify()
+
+    def _open_add_task_dialog(self):
+        """新建任务对话框"""
+        dialog = tk.Toplevel(self)
+        dialog.title("新建任务")
+        
+        # 输入字段
+        fields = [
+            ("名称:", "entry_name"),
+            ("计划时间（小时）:", "entry_time_planned")
+        ]
+        for i, (label, _) in enumerate(fields):
+            ttk.Label(dialog, text=label).grid(row=i, column=0, padx=5, pady=5)
+        
+        entry_name = ttk.Entry(dialog)
+        entry_time_planned = ttk.Entry(dialog)
+        entry_name.grid(row=0, column=1, padx=5, pady=5)
+        entry_time_planned.grid(row=1, column=1, padx=5, pady=5)
+        
+        def _save():
+            name = entry_name.get()
+            time_planned = float(entry_time_planned.get() or 0)
+            if name:
+                new_task = Task(name, time_planned=time_planned)
+                self.milestone.add_task(new_task)
+                self.tracker.save_data()
+                self._refresh_task_list()
+                dialog.destroy()
+        
+        ttk.Button(dialog, text="保存", command=_save).grid(row=2, columnspan=2)
 
 class TaskWindow(tk.Toplevel):
     """任务详情窗口"""
@@ -163,6 +207,25 @@ class TaskWindow(tk.Toplevel):
         btn_save = ttk.Button(self, text="保存修改", command=self._save_changes)
         btn_save.pack(pady=10)
 
+        # 新增状态选择下拉框
+        frame_status = ttk.Frame(self)
+        frame_status.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Label(frame_status, text="状态:").pack(side=tk.LEFT)
+        self.status_var = tk.StringVar(value=self.task.status)
+        status_combobox = ttk.Combobox(
+            frame_status, 
+            textvariable=self.status_var,
+            values=["TODO", "DOING", "DONE"],
+            state="readonly"
+        )
+        status_combobox.pack(side=tk.LEFT, padx=5)
+        status_combobox.bind("<<ComboboxSelected>>", self._update_status)
+
+        # 显示耗时（如果已完成）
+        if self.task.status == "DONE" and self.task.time_spent > 0:
+            ttk.Label(self, text=f"实际耗时: {self.task.time_spent:.1f} 小时").pack(anchor=tk.W, padx=10)
+
     def _create_links_section(self):
         """创建超链接区域"""
         frame = ttk.LabelFrame(self, text="关联文件")
@@ -206,6 +269,12 @@ class TaskWindow(tk.Toplevel):
         self.task.next_steps = self.next_steps_text.get("1.0", tk.END).strip()
         self.tracker.save_data()
         messagebox.showinfo("提示", "保存成功！")
+
+    def _update_status(self, event):
+        """处理状态变更"""
+        new_status = self.status_var.get()
+        self.task.update_status(new_status)
+        self.tracker.save_data()
 
 # ------------------------------
 # 启动程序

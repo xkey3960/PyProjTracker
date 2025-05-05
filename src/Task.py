@@ -25,6 +25,9 @@ class Task:
         self.next_steps = next_steps
         self.links = links or {"design_doc": "", "notes": "", "deliverables": ""}
         self.subtasks = subtasks or []
+        self.status = "TODO"  # 新增状态（TODO/DOING/DONE）
+        self.start_time: Optional[float] = None  # 开始时间戳（DOING时记录）
+        self.end_time: Optional[float] = None    # 结束时间戳（DONE时记录）
 
     def add_subtask(self, subtask: "Task") -> None:
         """添加子任务"""
@@ -44,7 +47,10 @@ class Task:
             "progress": self.progress,
             "next_steps": self.next_steps,
             "links": self.links,
-            "subtasks": [t.to_dict() for t in self.subtasks]
+            "subtasks": [t.to_dict() for t in self.subtasks],
+            "status": self.status,
+            "start_time": self.start_time,
+            "end_time": self.end_time
         }
 
     @classmethod
@@ -60,7 +66,22 @@ class Task:
         )
         task.id = data["id"]
         task.subtasks = [cls.from_dict(t) for t in data.get("subtasks", [])]
+        task.status = data.get("status", "TODO")
+        task.start_time = data.get("start_time")
+        task.end_time = data.get("end_time")
         return task
+
+    def update_status(self, new_status: str):
+        """更新状态并记录时间"""
+        if self.status != new_status:
+            if new_status == "DOING":
+                self.start_time = time.time()
+            elif new_status == "DONE":
+                self.end_time = time.time()
+                # 自动计算耗时（秒转小时）
+                if self.start_time:
+                    self.time_spent += (self.end_time - self.start_time) / 3600
+            self.status = new_status
 
 class Milestone:
     def __init__(self, name: str, tasks: Optional[List[Task]] = None):
