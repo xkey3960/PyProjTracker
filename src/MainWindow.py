@@ -88,7 +88,7 @@ class MilestoneWindow(tk.Toplevel):
         # 绑定双击事件
         self.tree.bind("<Double-1>", self._on_task_double_click)
 
-    def _populate_tasks(self, tasks: List[Task], parent: str):
+    def _populate_tasks(self, tasks: list[Task], parent: str):
         """递归填充任务树"""
         for task in tasks:
             item = self.tree.insert(
