@@ -148,6 +148,14 @@ class MilestoneWindow(tk.Toplevel):
         self.destroy()
         self.parent.deiconify()
 
+    def _refresh_task_list(self):
+        """刷新任务树形列表"""
+        # 清空现有树节点
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        # 重新填充数据
+        self._populate_tasks(self.milestone.tasks, parent="")
+    
     def _open_add_task_dialog(self):
         """新建任务对话框"""
         dialog = tk.Toplevel(self)
