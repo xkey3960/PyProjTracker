@@ -126,7 +126,7 @@ class MilestoneWindow(tk.Toplevel):
         for task in tasks:
             item = self.tree.insert(
                 parent, "end", 
-                text=task.name,
+                text=task.id,
                 values=(f"{task.name}", f"{task.progress}%", f"{task.time_spent}/{task.time_planned}"),
                 open=False
             )
