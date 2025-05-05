@@ -28,13 +28,25 @@ class MainWindow(tk.Tk):
         frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
         
         for milestone in self.tracker.milestones:
+            row_frame = ttk.Frame(frame)
+            row_frame.pack(fill=tk.X, pady=5)
+
             btn = ttk.Button(
-                frame,
+                row_frame,
                 text=f"{milestone.name}\n进度: {milestone.calculate_overall_progress():.1f}%",
                 command=lambda ms_id=milestone.id: self._open_milestone(ms_id),
                 width=30
             )
-            btn.pack(pady=5)
+            btn.pack(side=tk.LEFT, padx=5)
+
+            # 删除按钮
+            btn_del = ttk.Button(
+                row_frame,
+                text="×",
+                style="Danger.TButton",  # 需定义红色样式
+                command=lambda ms_id=milestone.id: self._delete_milestone(ms_id)
+            )
+            btn_del.pack(side=tk.LEFT)
         
         # “添加里程碑”按钮
         btn_add = ttk.Button(self, text="+ 新建里程碑", command=self._open_add_milestone_dialog)
@@ -73,6 +85,15 @@ class MainWindow(tk.Tk):
         for widget in self.winfo_children():
             widget.destroy()
         self._create_widgets()
+
+    def _delete_milestone(self, milestone_id: str):
+        """删除里程碑确认逻辑"""
+        if messagebox.askyesno("确认", "确定删除该里程碑及其所有任务吗？"):
+            if self.tracker.remove_milestone(milestone_id):
+                self.tracker.save_data()
+                self._refresh_ui()  # 刷新界面
+            else:
+                messagebox.showerror("错误", "删除失败")
 
 class MilestoneWindow(tk.Toplevel):
     """里程碑详情窗口"""
@@ -122,6 +143,9 @@ class MilestoneWindow(tk.Toplevel):
         # 新增“添加任务”按钮
         btn_add_task = ttk.Button(self, text="+ 添加任务", command=self._open_add_task_dialog)
         btn_add_task.pack(anchor=tk.NE, padx=10, pady=5)
+
+        # 树形列表右键菜单
+        self.tree.bind("<Button-3>", self._show_context_menu)
 
     def _populate_tasks(self, tasks: list[Task], parent: str):
         """递归填充任务树"""
@@ -201,6 +225,29 @@ class MilestoneWindow(tk.Toplevel):
                 dialog.destroy()
         
         ttk.Button(dialog, text="保存", command=_save).grid(row=2, columnspan=2)
+
+    def _show_context_menu(self, event):
+        """右键菜单删除选项"""
+        item = self.tree.identify_row(event.y)
+        if not item:
+            return
+        
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label="删除任务", 
+            command=lambda: self._delete_task(item)
+        )
+        menu.post(event.x_root, event.y_root)
+
+    def _delete_task(self, tree_item: str):
+        """删除任务逻辑"""
+        task_id = self.tree.item(tree_item, "text")  # 假设text存储任务ID
+        if messagebox.askyesno("确认", "确定删除该任务及其所有子任务吗？"):
+            if self.tracker.remove_task(task_id):
+                self.tracker.save_data()
+                self._refresh_task_list()
+            else:
+                messagebox.showerror("错误", "删除失败")
 
 class TaskWindow(tk.Toplevel):
     """任务详情窗口"""
@@ -323,6 +370,7 @@ class TaskWindow(tk.Toplevel):
 # 启动程序
 # ------------------------------
 if __name__ == "__main__":
+
     # 初始化数据跟踪器
     tracker = ProgressTracker()
     

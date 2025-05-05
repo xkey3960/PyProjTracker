@@ -92,6 +92,26 @@ class Milestone:
     def add_task(self, task: Task) -> None:
         """添加任务"""
         self.tasks.append(task)
+    
+    def remove_task(self, task_id: str) -> bool:
+        """删除指定ID的任务（递归查找子任务）"""
+        for i, task in enumerate(self.tasks):
+            if task.id == task_id:
+                del self.tasks[i]
+                return True
+            # 递归删除子任务
+            if self._remove_subtask(task, task_id):
+                return True
+        return False
+
+    def _remove_subtask(self, parent_task: Task, target_id: str) -> bool:
+        for i, subtask in enumerate(parent_task.subtasks):
+            if subtask.id == target_id:
+                del parent_task.subtasks[i]
+                return True
+            if self._remove_subtask(subtask, target_id):
+                return True
+        return False
 
     def calculate_total_time(self) -> float:
         """计算总计划时间（包含子任务）"""
@@ -175,6 +195,21 @@ class ProgressTracker:
             if found:
                 return found
         return None
+
+    def remove_milestone(self, milestone_id: str) -> bool:
+        """删除里程碑"""
+        for i, ms in enumerate(self.milestones):
+            if ms.id == milestone_id:
+                del self.milestones[i]
+                return True
+        return False
+
+    def remove_task(self, task_id: str) -> bool:
+        """全局删除任务（跨里程碑）"""
+        for milestone in self.milestones:
+            if milestone.remove_task(task_id):
+                return True
+        return False
 
 # ------------------------------
 # 测试用例
