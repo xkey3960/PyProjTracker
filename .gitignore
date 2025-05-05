@@ -1,3 +1,4 @@
 .vscode/launch.json
 test_progress.json
 src/__pycache__/Task.cpython-312.pyc
+progress.json
