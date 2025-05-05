@@ -251,11 +251,25 @@ class ProgressTracker:
                 del self.milestones[i]
                 return True
         return False
+    
+    def _update_info4subtasks(self, task: Task):
+        if task.has_children:
+            task.time_planned = sum(t.calculate_total_time_planned() for t in task.subtasks)
+            task.time_spent = sum(t.calculate_total_time_spent() for t in task.subtasks)
+            task.progress = task.calculate_progress()
 
     def remove_task(self, task_id: str) -> bool:
         """全局删除任务（跨里程碑）"""
         for milestone in self.milestones:
+            deleted_task = self.find_task(task_id)
+            if deleted_task:
+                parent = deleted_task.parent
             if milestone.remove_task(task_id):
+                # 查找被删除任务的父任务（通过任务引用）
+                deleted_task = self.find_task(task_id)  # 假设任务未完全从内存清除
+                if parent:
+                    self._update_info4subtasks(parent)
+                self.save_data()
                 return True
         return False
 
@@ -265,10 +279,7 @@ class ProgressTracker:
         # 此处假设每个任务存储了parent引用
         current = task
         while current.parent is not None:
-            current.parent.time_planned = sum(t.calculate_total_time_planned() for t in task.parent.subtasks)
-            current.parent.time_spent = sum(t.calculate_total_time_spent() for t in task.parent.subtasks)
-            # 计算进度
-            current.parent.progress = current.parent.calculate_progress()
+            self._update_info4subtasks(current)
             current = current.parent
 
     def add_task(self, parent_task: Optional[Task], new_task: Task):
