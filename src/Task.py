@@ -15,7 +15,8 @@ class Task:
         progress: int = 0,
         next_steps: str = "",
         links: Optional[Dict[str, str]] = None,
-        subtasks: Optional[List["Task"]] = None
+        subtasks: Optional[List["Task"]] = None,
+        parent: Optional["Task"] = None
     ):
         self.id = str(uuid.uuid4())  # 唯一标识
         self.name = name
@@ -28,13 +29,22 @@ class Task:
         self.status = "TODO"  # 新增状态（TODO/DOING/DONE）
         self.start_time: Optional[float] = None  # 开始时间戳（DOING时记录）
         self.end_time: Optional[float] = None    # 结束时间戳（DONE时记录）
+        self.parent = parent  # 新增父任务引用
 
     def add_subtask(self, subtask: "Task") -> None:
         """添加子任务"""
+        subtask.parent = self # 设置子任务的父引用
         self.subtasks.append(subtask)
 
+    @property
+    def has_children(self) -> bool:
+        """是否有子任务"""
+        return len(self.subtasks) > 0
+
     def update_progress(self, new_progress: int) -> None:
-        """更新进度（自动限制范围）"""
+        """更新进度（仅叶子任务可手动修改）"""
+        if self.has_children:
+            raise ValueError("有子任务的任务不能手动修改进度")
         self.progress = max(0, min(100, new_progress))
 
     def to_dict(self) -> dict:
@@ -54,7 +64,7 @@ class Task:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Task":
+    def from_dict(cls, data: dict, parent: Optional["Task"] = None) -> "Task":
         """从字典创建 Task 对象（递归处理子任务）"""
         task = cls(
             name=data["name"],
@@ -62,10 +72,15 @@ class Task:
             time_spent=data["time_spent"],
             progress=data["progress"],
             next_steps=data["next_steps"],
-            links=data["links"]
+            links=data["links"],
+            parent=parent
         )
         task.id = data["id"]
-        task.subtasks = [cls.from_dict(t) for t in data.get("subtasks", [])]
+        subtasks_data = data.get("subtasks", [])
+        task.subtasks = [
+            cls.from_dict(subtask_data, parent=task)  # 关键修复：传递parent=task
+            for subtask_data in subtasks_data
+        ]
         task.status = data.get("status", "TODO")
         task.start_time = data.get("start_time")
         task.end_time = data.get("end_time")
@@ -82,6 +97,23 @@ class Task:
                 if self.start_time:
                     self.time_spent += (self.end_time - self.start_time) / 3600
             self.status = new_status
+
+    def calculate_progress(self) -> float:
+        """计算进度（如果是父任务则根据子任务加权平均）"""
+        if not self.has_children:
+            return float(self.progress)
+        total_weight = sum(t.time_planned for t in self.subtasks)
+        if total_weight == 0:
+            return 0.0
+        return sum(t.calculate_progress() * t.time_planned for t in self.subtasks) / total_weight
+
+    def calculate_total_time_planned(self) -> float:
+        """计算总计划时间（递归子任务）"""
+        return self.time_planned + sum(t.calculate_total_time_planned() for t in self.subtasks)
+
+    def calculate_total_time_spent(self) -> float:
+        """计算总投入时间（递归子任务）"""
+        return self.time_spent + sum(t.calculate_total_time_spent() for t in self.subtasks)
 
 class Milestone:
     def __init__(self, name: str, tasks: Optional[List[Task]] = None):
@@ -141,8 +173,23 @@ class Milestone:
     def from_dict(cls, data: dict) -> "Milestone":
         milestone = cls(name=data["name"])
         milestone.id = data["id"]
-        milestone.tasks = [Task.from_dict(t) for t in data.get("tasks", [])]
+        milestone.tasks = [Task.from_dict(t, parent=None) for t in data.get("tasks", [])]
         return milestone
+
+    def calculate_total_time_planned(self) -> float:
+        """里程碑总计划时间（所有任务递归）"""
+        return sum(t.calculate_total_time_planned() for t in self.tasks)
+
+    def calculate_total_time_spent(self) -> float:
+        """里程碑总投入时间（所有任务递归）"""
+        return sum(t.calculate_total_time_spent() for t in self.tasks)
+
+    def calculate_overall_progress(self) -> float:
+        """里程碑整体进度（加权平均）"""
+        total_weight = self.calculate_total_time_planned()
+        if total_weight == 0:
+            return 0.0
+        return sum(t.calculate_progress() * t.calculate_total_time_planned() for t in self.tasks) / total_weight
 
 # ------------------------------
 # 持久化类
@@ -210,6 +257,28 @@ class ProgressTracker:
             if milestone.remove_task(task_id):
                 return True
         return False
+
+    def _propagate_time_update(self, task: Task):
+        """递归向上更新父任务时间"""
+        # 实现逻辑需根据数据结构补充父任务引用
+        # 此处假设每个任务存储了parent引用
+        current = task
+        while current.parent is not None:
+            current.parent.time_planned = sum(t.calculate_total_time_planned() for t in task.parent.subtasks)
+            current.parent.time_spent = sum(t.calculate_total_time_spent() for t in task.parent.subtasks)
+            # 计算进度
+            current.parent.progress = current.parent.calculate_progress()
+            current = current.parent
+
+    def add_task(self, parent_task: Optional[Task], new_task: Task):
+        """添加任务时维护父子关系"""
+        new_task.parent = parent_task
+        if parent_task:
+            parent_task.subtasks.append(new_task)
+        else:
+            self.milestones[-1].tasks.append(new_task)
+        self._propagate_time_update(new_task)
+        self.save_data()
 
 # ------------------------------
 # 测试用例

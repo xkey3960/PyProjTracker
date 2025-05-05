@@ -291,12 +291,13 @@ class MilestoneWindow(tk.Toplevel):
             if not name:
                 return
                 
-            new_task = Task(name, time_planned=time_planned)
+            new_task = Task(name, time_planned=time_planned, parent=parent_task)
             if parent_task:
                 parent_task.add_subtask(new_task)  # 添加为子任务
             else:
                 self.milestone.add_task(new_task)  # 添加为顶层任务
-                
+            
+            self.tracker._propagate_time_update(new_task)
             self.tracker.save_data()
             self._refresh_task_list()
             dialog.destroy()
@@ -322,11 +323,19 @@ class TaskWindow(tk.Toplevel):
         # 进度管理
         frame_progress = ttk.Frame(self)
         frame_progress.pack(fill=tk.X, padx=10, pady=5)
-        ttk.Label(frame_progress, text="进度:").grid(row=0, column=0)
-        self.progress_var = tk.IntVar(value=self.task.progress)
-        ttk.Scale(frame_progress, from_=0, to=100, variable=self.progress_var,
-                 command=lambda v: self._update_progress(int(float(v)))).grid(row=0, column=1, sticky="ew")
-        ttk.Label(frame_progress, textvariable=tk.StringVar(value=f"{self.progress_var.get()}%")).grid(row=0, column=2)
+        ttk.Label(frame_progress, text="进度 (%):").grid(row=0, column=0)
+        self.progress_var = tk.StringVar(value=str(int(self.task.calculate_progress())))
+        self.entry_progress = ttk.Entry(frame_progress, textvariable=self.progress_var, width=5)
+        
+        # 有子任务时禁用输入
+        if self.task.has_children:
+            self.entry_progress.config(state="disabled")
+            ttk.Label(frame_progress, text="(自动计算)").grid(row=0, column=2)
+        else:
+            self.entry_progress.config(validate="key", 
+                validatecommand=(self.register(self._validate_progress), "%P"))
+        
+        self.entry_progress.grid(row=0, column=1)
 
         # 时间管理
         frame_time = ttk.Frame(self)
@@ -369,6 +378,16 @@ class TaskWindow(tk.Toplevel):
         # 显示耗时（如果已完成）
         if self.task.status == "DONE" and self.task.time_spent > 0:
             ttk.Label(self, text=f"实际耗时: {self.task.time_spent:.1f} 小时").pack(anchor=tk.W, padx=10)
+    
+    def _validate_progress(self, value: str) -> bool:
+        """验证进度输入（0-100整数）"""
+        if value == "":
+            return True
+        try:
+            num = int(value)
+            return 0 <= num <= 100
+        except ValueError:
+            return False
 
     def _create_links_section(self):
         """创建超链接区域"""
@@ -406,6 +425,13 @@ class TaskWindow(tk.Toplevel):
                 widget.config(text=f"进度: {value}%")
 
     def _save_changes(self):
+        """保存时处理进度更新"""
+        if not self.task.has_children:
+            try:
+                self.task.update_progress(int(self.progress_var.get()))
+            except ValueError as e:
+                messagebox.showerror("错误", str(e))
+                return
         """保存修改到数据模型"""
         self.task.progress = self.progress_var.get()
         self.task.time_spent = self.time_spent_var.get()
@@ -413,6 +439,11 @@ class TaskWindow(tk.Toplevel):
         self.task.next_steps = self.next_steps_text.get("1.0", tk.END).strip()
         self.tracker.save_data()
         messagebox.showinfo("提示", "保存成功！")
+
+        # 触发时间更新
+        self.tracker._propagate_time_update(self.task)
+        self.tracker.save_data()
+        self.parent._refresh_task_list()  # 刷新父窗口
 
     def _update_status(self, event):
         """处理状态变更"""
