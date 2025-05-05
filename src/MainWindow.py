@@ -95,11 +95,11 @@ class MilestoneWindow(tk.Toplevel):
         frame = ttk.Frame(self)
         frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        self.tree = ttk.Treeview(frame, columns=("progress", "time"), show="headings")
-        self.tree.heading("#0", text="任务名称")
+        self.tree = ttk.Treeview(frame, columns=("name", "progress", "time"), show="headings")
+        self.tree.heading("name", text="任务名称")
         self.tree.heading("progress", text="进度 (%)")
         self.tree.heading("time", text="时间 (小时)")
-        self.tree.column("#0", width=300)
+        self.tree.column("name", width=300)
         self.tree.column("progress", width=100)
         self.tree.column("time", width=100)
         
@@ -127,7 +127,7 @@ class MilestoneWindow(tk.Toplevel):
             item = self.tree.insert(
                 parent, "end", 
                 text=task.name,
-                values=(f"{task.progress}%", f"{task.time_spent}/{task.time_planned}"),
+                values=(f"{task.name}", f"{task.progress}%", f"{task.time_spent}/{task.time_planned}"),
                 open=False
             )
             if task.subtasks:
