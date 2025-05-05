@@ -114,6 +114,8 @@ class MilestoneWindow(tk.Toplevel):
         # 填充任务数据
         self._populate_tasks(self.milestone.tasks, parent="")
 
+        # 单击展开/折叠
+        self.tree.bind("<Button-1>", self._on_tree_click) 
         # 绑定双击事件
         self.tree.bind("<Double-1>", self._on_task_double_click)
 
@@ -133,10 +135,24 @@ class MilestoneWindow(tk.Toplevel):
             if task.subtasks:
                 self._populate_tasks(task.subtasks, parent=item)
 
+    def _on_tree_click(self, event):
+        """处理单击事件"""
+        row_id = self.tree.identify_row(event.y)
+        if not row_id:
+            return
+
+        # 仅当点击项有子项时切换展开状态
+        if self.tree.get_children(row_id):
+            is_open = self.tree.item(row_id, "open")
+            self.tree.item(row_id, open=not is_open)
+        
+        # 选中当前项（无论是否有子项）
+        self.tree.selection_set(row_id)
+
     def _on_task_double_click(self, event):
         """处理任务双击事件"""
         item = self.tree.selection()[0]
-        task_id = self.tree.item(item, "text")  # 这里需要根据实际数据结构调整ID获取方式
+        task_id = self.tree.item(item, "text")
         task = self.tracker.find_task(task_id)
         if task:
             TaskWindow(self, self.tracker, task)
