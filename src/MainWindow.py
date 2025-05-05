@@ -48,7 +48,26 @@ class MainWindow(tk.Tk):
             MilestoneWindow(self, self.tracker, milestone)
         else:
             messagebox.showerror("错误", "未找到该里程碑")
-    
+
+    def _open_add_milestone_dialog(self):
+        """新建里程碑对话框"""
+        dialog = tk.Toplevel(self)
+        dialog.title("新建里程碑")
+        
+        ttk.Label(dialog, text="名称:").grid(row=0, column=0, padx=5, pady=5)
+        entry_name = ttk.Entry(dialog)
+        entry_name.grid(row=0, column=1, padx=5, pady=5)
+        
+        def _save():
+            name = entry_name.get()
+            if name:
+                self.tracker.milestones.append(Milestone(name))
+                self.tracker.save_data()
+                self._refresh_ui()
+                dialog.destroy()
+        
+        ttk.Button(dialog, text="保存", command=_save).grid(row=1, columnspan=2)
+
     def _refresh_ui(self):
         """刷新主界面"""
         for widget in self.winfo_children():
